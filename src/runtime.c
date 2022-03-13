@@ -101,17 +101,30 @@ char validScratch(const struct RoseEngine *t, const struct hs_scratch *s) {
         return 0;
     }
 
-    if (t->mode == HS_MODE_BLOCK && t->stateOffsets.end > s->bStateSize) {
-        DEBUG_PRINTF("bad state size\n");
+    u32 bStateSize = 0;
+    if (t->mode == HS_MODE_BLOCK) {
+        bStateSize = t->stateOffsets.end;
+    } else if (t->mode == HS_MODE_VECTORED) {
+        bStateSize = sizeof(struct hs_stream) + t->stateOffsets.end;
+    }
+
+    if (bStateSize > s->bStateSize) {
         return 0;
     }
 
-    if (t->queueCount > s->queueCount) {
-        DEBUG_PRINTF("bad queue count\n");
+    if (t->anchoredDistance > s->anchored_literal_region_len ||
+            t->anchored_fatbit_size > s->anchored_literal_fatbit_size ||
+            t->delay_fatbit_size > s->delay_fatbit_size ||
+            t->handledKeyFatbitSize > s->handledKeyFatbitSize ||
+            t->tStateSize > s->tStateSize ||
+            t->somLocationCount > s->som_store_count ||
+            t->somLocationFatbitSize > s->som_fatbit_size ||
+            t->queueCount > s->queueCount ||
+            t->activeQueueArraySize > s->activeQueueArraySize ||
+            t->scratchStateSize > s->fullStateSize ||
+            t->dkeyCount > s->deduper.dkey_count) {
         return 0;
     }
-
-    /* TODO: add quick rose sanity checks */
 
     return 1;
 }
