@@ -1,0 +1,2 @@
+[workspace]
+members = ["hyperscan-sys", "hyperscan", "foo"]
