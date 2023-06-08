@@ -1,0 +1,47 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+env:
+  IMAGE: hyperscan
+  REGISTRY_HOST: us-central1-docker.pkg.dev
+  REGISTRY_NAME: defenderd-integration
+
+jobs:
+  hyperscan:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: set registry env variable
+        run: |
+          echo "REGISTRY=$REGISTRY_HOST/${{ secrets.GCP_PROJECT_ID }}/$REGISTRY_NAME" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup gcloud CLI
+        uses: google-github-actions/setup-gcloud@94337306dda8180d967a56932ceb4ddcf01edae7
+        with:
+          service_account_key: ${{ secrets.GCP_SERVICE_ACC_KEY }}
+
+      - name: Authorize docker via gcloud
+        run: |-
+          gcloud --quiet auth configure-docker us-central1-docker.pkg.dev
+
+      - name: Build docker image
+        run: |-
+          DOCKER_BUILDKIT=1 docker build . \
+            -f ci/Dockerfile \
+            --tag "$REGISTRY/$IMAGE:$GITHUB_SHA"
+
+      - name: Push to registry
+        run: |-
+          docker push "$REGISTRY/$IMAGE:$GITHUB_SHA"
+
+      - name: tag as latest and push
+        run: |-
+          docker tag "$REGISTRY/$IMAGE:$GITHUB_SHA" "$REGISTRY/$IMAGE:latest"
+          docker push "$REGISTRY/$IMAGE:latest"
