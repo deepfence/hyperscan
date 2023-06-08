@@ -1,0 +1,56 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  IMAGE: hyperscan
+  REGISTRY_HOST: us-central1-docker.pkg.dev
+  REGISTRY_NAME: defenderd-integration
+
+jobs:
+  hyperscan:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: set registry env variable
+        run: |
+          echo "REGISTRY=$REGISTRY_HOST/${{ secrets.GCP_PROJECT_ID }}/$REGISTRY_NAME" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@v2
+        # with:
+          # token: ${{ secrets.CI_PAT }}
+          # submodules: recursive
+
+      - name: Setup gcloud CLI
+        uses: google-github-actions/setup-gcloud@94337306dda8180d967a56932ceb4ddcf01edae7
+        with:
+          # TODO(tjonak): right now I'm reusing the same service account that drives k8s
+          # they should be separated
+          service_account_key: ${{ secrets.GCP_SERVICE_ACC_KEY }}
+          # project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Authorize docker via gcloud
+        run: |-
+          gcloud --quiet auth configure-docker us-central1-docker.pkg.dev
+
+      - name: Build docker image
+        run: |-
+          DOCKER_BUILDKIT=1 docker build . \
+            -f ci/Dockerfile \
+            --tag "$REGISTRY/$IMAGE:$GITHUB_SHA"
+
+      - name: Push to registry
+        run: |-
+          docker push "$REGISTRY/$IMAGE:$GITHUB_SHA"
+
+      # In principle build workflow should end triggering build+tests in defenderd
+      # after successfull build event would be send back to separate workflow here to mark as latest.
+      # or else defenderd workflow could do that, no strong preference
+      - name: tag as latest and push
+        run: |-
+          docker tag "$REGISTRY/$IMAGE:$GITHUB_SHA" "$REGISTRY/$IMAGE:latest"
+          docker push "$REGISTRY/$IMAGE:latest"
